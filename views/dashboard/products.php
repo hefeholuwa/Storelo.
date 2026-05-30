@@ -42,9 +42,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'add')
             $new_name = uniqid('prod_', true) . '.' . $file_ext;
             $dest = __DIR__ . '/../../uploads/products/' . $new_name;
             if (move_uploaded_file($file_tmp, $dest)) {
+                $stock = isset($_POST['stock']) ? intval($_POST['stock']) : 1;
                 $image_path = 'uploads/products/' . $new_name;
-                $stmt = $db->prepare("INSERT INTO products (seller_id, name, description, category, price, image_path) VALUES (?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$seller_id, $name, $description, $category, $price, $image_path]);
+                $stmt = $db->prepare("INSERT INTO products (seller_id, name, description, category, price, image_path, stock) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$seller_id, $name, $description, $category, $price, $image_path, $stock]);
                 $success = "Product added!";
             } else {
                 $error = "Failed to upload image.";
@@ -77,7 +78,7 @@ if (isset($_GET['toggle'])) {
     $stmt->execute([$prod_id, $seller_id]);
     $p = $stmt->fetch();
     if ($p) {
-        $new_status = ($p['status'] === 'available') ? 'sold' : 'available';
+        $new_status = ($p['status'] === 'active') ? 'hidden' : 'active';
         $stmt = $db->prepare("UPDATE products SET status = ? WHERE id = ?");
         $stmt->execute([$new_status, $prod_id]);
         $success = "Status updated to " . $new_status . ".";
@@ -132,6 +133,10 @@ $products = $stmt->fetchAll();
                             <label>Category</label>
                             <input type="text" name="category" class="form-control" placeholder="e.g. Jackets">
                         </div>
+                        <div class="form-group" style="flex:1;">
+                            <label>Stock Quantity</label>
+                            <input type="number" min="0" name="stock" class="form-control" value="1" required>
+                        </div>
                     </div>
 
                     <div class="form-group">
@@ -159,7 +164,7 @@ $products = $stmt->fetchAll();
                 <div class="product-grid">
                     <?php foreach ($products as $p): ?>
                         <div class="product-card-admin">
-                            <span class="badge <?= $p['status'] === 'available' ? 'badge-success' : 'badge-danger' ?> status-badge">
+                            <span class="badge <?= $p['status'] === 'active' ? 'badge-success' : 'badge-danger' ?> status-badge">
                                 <?= strtoupper($p['status']) ?>
                             </span>
                             <img src="<?= BASE_URL ?>/<?= $p['image_path'] ?>" alt="<?= e($p['name']) ?>">
@@ -167,10 +172,13 @@ $products = $stmt->fetchAll();
                             <?php if ($p['category']): ?>
                                 <small style="color:var(--text-muted);"><?= e($p['category']) ?></small>
                             <?php endif; ?>
+                            <div style="font-size: 0.85rem; margin-top: 4px; font-weight: 500;">
+                                Stock: <?= $p['stock'] > 0 ? $p['stock'] : '<span style="color:var(--danger)">OUT OF STOCK</span>' ?>
+                            </div>
                             <div class="product-price"><?= $currency ?><?= number_format($p['price'], 2) ?></div>
                             <div class="product-actions">
                                 <a href="?toggle=<?= $p['id'] ?>" class="action-toggle">
-                                    Mark <?= $p['status'] === 'available' ? 'Sold' : 'Available' ?>
+                                    Mark <?= $p['status'] === 'active' ? 'Hidden' : 'Active' ?>
                                 </a>
                                 <a href="?delete=<?= $p['id'] ?>" class="action-delete" onclick="return confirm('Delete this product?')">
                                     Delete
