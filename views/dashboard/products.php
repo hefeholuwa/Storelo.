@@ -25,31 +25,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'add')
 
     if (empty($name) || $price <= 0) {
         $error = "Product name and a valid price are required.";
-    } elseif (!isset($_FILES['image']) || $_FILES['image']['error'] !== UPLOAD_ERR_OK) {
-        $error = "Please upload a product image.";
+    } elseif (!isset($_FILES['images']) || empty($_FILES['images']['name'][0])) {
+        $error = "Please upload at least one product image.";
     } else {
-        $file_tmp = $_FILES['image']['tmp_name'];
-        $file_name = $_FILES['image']['name'];
-        $file_size = $_FILES['image']['size'];
-        $file_ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
+        $uploaded_paths = [];
         $allowed = ['jpg', 'jpeg', 'png', 'webp'];
+        $upload_error = false;
 
-        if (!in_array($file_ext, $allowed)) {
-            $error = "Invalid file type. Use JPG, PNG, or WEBP.";
-        } elseif ($file_size > 2097152) {
-            $error = "Image must be less than 2MB.";
-        } else {
-            $new_name = uniqid('prod_', true) . '.' . $file_ext;
-            $dest = __DIR__ . '/../../uploads/products/' . $new_name;
-            if (move_uploaded_file($file_tmp, $dest)) {
-                $stock = isset($_POST['stock']) ? intval($_POST['stock']) : 1;
-                $image_path = 'uploads/products/' . $new_name;
-                $stmt = $db->prepare("INSERT INTO products (seller_id, name, description, category, price, image_path, stock) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$seller_id, $name, $description, $category, $price, $image_path, $stock]);
-                $success = "Product added!";
+        foreach ($_FILES['images']['name'] as $key => $file_name) {
+            if ($_FILES['images']['error'][$key] !== UPLOAD_ERR_OK) continue;
+            
+            $file_tmp = $_FILES['images']['tmp_name'][$key];
+            $file_size = $_FILES['images']['size'][$key];
+            $file_ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
+
+            if (!in_array($file_ext, $allowed)) {
+                $error = "Invalid file type for $file_name. Use JPG, PNG, or WEBP.";
+                $upload_error = true;
+                break;
+            } elseif ($file_size > 10485760) {
+                $error = "Image $file_name must be less than 10MB.";
+                $upload_error = true;
+                break;
             } else {
-                $error = "Failed to upload image.";
+                $new_name = uniqid('prod_', true) . '.' . $file_ext;
+                $dest = __DIR__ . '/../../uploads/products/' . $new_name;
+                if (move_uploaded_file($file_tmp, $dest)) {
+                    $uploaded_paths[] = 'uploads/products/' . $new_name;
+                }
             }
+        }
+
+        if (!$upload_error && !empty($uploaded_paths)) {
+            $stock = isset($_POST['stock']) ? intval($_POST['stock']) : 1;
+            $image_paths_json = json_encode($uploaded_paths);
+            $stmt = $db->prepare("INSERT INTO products (seller_id, name, description, category, price, image_paths, stock) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$seller_id, $name, $description, $category, $price, $image_paths_json, $stock]);
+            $success = "Product added!";
+        } elseif (!$upload_error) {
+            $error = "Failed to upload images.";
         }
     }
 }
@@ -58,13 +72,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'add')
 if (isset($_GET['delete'])) {
     $prod_id = intval($_GET['delete']);
     // Verify ownership
-    $stmt = $db->prepare("SELECT image_path FROM products WHERE id = ? AND seller_id = ?");
+    $stmt = $db->prepare("SELECT image_paths FROM products WHERE id = ? AND seller_id = ?");
     $stmt->execute([$prod_id, $seller_id]);
     $p = $stmt->fetch();
     if ($p) {
-        // Delete file from server
-        $file_path = __DIR__ . '/../../' . $p['image_path'];
-        if (file_exists($file_path)) unlink($file_path);
+        // Delete files from server
+        $paths = json_decode($p['image_paths'], true) ?: [];
+        foreach ($paths as $path) {
+            $file_path = __DIR__ . '/../../' . $path;
+            if (file_exists($file_path)) unlink($file_path);
+        }
         $stmt = $db->prepare("DELETE FROM products WHERE id = ? AND seller_id = ?");
         $stmt->execute([$prod_id, $seller_id]);
         $success = "Product deleted.";
@@ -145,8 +162,9 @@ $products = $stmt->fetchAll();
                     </div>
 
                     <div class="form-group">
-                        <label>Product Image (JPG/PNG/WEBP, max 2MB)</label>
-                        <input type="file" name="image" accept=".jpg,.jpeg,.png,.webp" required style="margin-top:6px;">
+                        <label>Product Images (JPG/PNG/WEBP, max 10MB each)</label>
+                        <input type="file" name="images[]" accept=".jpg,.jpeg,.png,.webp" multiple required style="margin-top:6px;">
+                        <small style="color:var(--text-muted); display:block; margin-top:4px;">You can select multiple images. The first image will be the cover.</small>
                     </div>
 
                     <button type="submit" class="btn-primary">Upload Product</button>
@@ -167,7 +185,11 @@ $products = $stmt->fetchAll();
                             <span class="badge <?= $p['status'] === 'active' ? 'badge-success' : 'badge-danger' ?> status-badge">
                                 <?= strtoupper($p['status']) ?>
                             </span>
-                            <img src="<?= BASE_URL ?>/<?= $p['image_path'] ?>" alt="<?= e($p['name']) ?>">
+                            <?php 
+                            $paths = json_decode($p['image_paths'], true);
+                            $cover_image = !empty($paths) ? $paths[0] : 'assets/images/placeholder.png';
+                            ?>
+                            <img src="<?= BASE_URL ?>/<?= $cover_image ?>" alt="<?= e($p['name']) ?>">
                             <h4><?= e($p['name']) ?></h4>
                             <?php if ($p['category']): ?>
                                 <small style="color:var(--text-muted);"><?= e($p['category']) ?></small>

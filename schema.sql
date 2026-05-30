@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS products (
     description TEXT,
     category VARCHAR(50),
     price DECIMAL(10, 2) NOT NULL,
-    image_path VARCHAR(255) NOT NULL,
+    image_paths TEXT NOT NULL,
     stock INT UNSIGNED DEFAULT 1,
     status ENUM('active', 'hidden') DEFAULT 'active',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

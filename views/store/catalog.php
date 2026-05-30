@@ -85,7 +85,12 @@ $categories = array_unique(array_filter(array_column($products, 'category')));
             <div class="product-grid" id="product-grid">
                 <?php foreach ($products as $p): ?>
                     <div class="glass-card product-card" data-category="<?= e($p['category'] ?? '') ?>">
-                        <img class="product-image" src="<?= BASE_URL ?>/<?= $p['image_path'] ?>" alt="<?= e($p['name']) ?>">
+                        <?php 
+                        $paths = json_decode($p['image_paths'], true) ?: [];
+                        $cover_image = !empty($paths) ? $paths[0] : 'assets/images/placeholder.png';
+                        $json_escaped = htmlspecialchars(json_encode($paths), ENT_QUOTES, 'UTF-8');
+                        ?>
+                        <img class="product-image" src="<?= BASE_URL ?>/<?= $cover_image ?>" alt="<?= e($p['name']) ?>" style="cursor:pointer;" onclick="openLightbox(<?= $json_escaped ?>)">
 
                         <?php if ($p['stock'] <= 0): ?>
                             <div class="sold-overlay"><span>SOLD OUT</span></div>
@@ -112,7 +117,7 @@ $categories = array_unique(array_filter(array_column($products, 'category')));
                                         <input type="text" id="qty-input-<?= $p['id'] ?>" value="1" readonly style="width:30px; text-align:center; background:none; border:none; color:var(--text-color); font-size:0.9rem;">
                                         <button type="button" onclick="incrementCatalogQty(<?= $p['id'] ?>, <?= $p['stock'] ?>)" style="background:none; border:none; color:var(--text-color); padding:4px 8px; cursor:pointer;">+</button>
                                     </div>
-                                    <button onclick="addCatalogToCart(<?= $p['id'] ?>, '<?= addslashes(e($p['name'])) ?>', <?= $p['price'] ?>, '<?= BASE_URL ?>/<?= $p['image_path'] ?>', <?= $p['stock'] ?>)" class="btn-primary btn-sm" style="flex:1;">Add to Cart</button>
+                                    <button onclick="addCatalogToCart(<?= $p['id'] ?>, '<?= addslashes(e($p['name'])) ?>', <?= $p['price'] ?>, '<?= BASE_URL ?>/<?= $cover_image ?>', <?= $p['stock'] ?>)" class="btn-primary btn-sm" style="flex:1;">Add to Cart</button>
                                 </div>
                             <?php else: ?>
                                 <button class="btn-secondary btn-sm" disabled style="width:100%; cursor:not-allowed;">SOLD OUT</button>
@@ -171,12 +176,73 @@ $categories = array_unique(array_filter(array_column($products, 'category')));
         </div>
     </div>
 
+    <!-- Lightbox Modal -->
+    <div id="lightbox-overlay" class="lightbox-overlay" onclick="closeLightbox(event)">
+        <button class="lightbox-close" onclick="closeLightbox(event)">&times;</button>
+        <button class="lightbox-nav lightbox-prev" onclick="lightboxNav(-1, event)">&#10094;</button>
+        <img id="lightbox-main-img" class="lightbox-content" src="" alt="Product Image">
+        <button class="lightbox-nav lightbox-next" onclick="lightboxNav(1, event)">&#10095;</button>
+        <div id="lightbox-thumbnails" class="lightbox-thumbnails"></div>
+    </div>
+
     <!-- Footer -->
     <footer style="border-top:1px solid var(--border-subtle); padding:20px; text-align:center; color:var(--text-muted); font-size:0.8rem; margin-top:60px;">
         Powered by <a href="<?= BASE_URL ?>/" style="color:var(--accent-light);">Storelo</a>
     </footer>
 
     <script>
+        let lightboxImages = [];
+        let lightboxCurrentIndex = 0;
+        const baseUrl = '<?= BASE_URL ?>/';
+
+        function openLightbox(images) {
+            if (!images || images.length === 0) return;
+            lightboxImages = images;
+            lightboxCurrentIndex = 0;
+            renderLightbox();
+            document.getElementById('lightbox-overlay').classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeLightbox(e) {
+            if (e.target.classList.contains('lightbox-overlay') || e.target.classList.contains('lightbox-close')) {
+                document.getElementById('lightbox-overlay').classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        }
+
+        function lightboxNav(dir, e) {
+            e.stopPropagation();
+            lightboxCurrentIndex += dir;
+            if (lightboxCurrentIndex < 0) lightboxCurrentIndex = lightboxImages.length - 1;
+            if (lightboxCurrentIndex >= lightboxImages.length) lightboxCurrentIndex = 0;
+            renderLightbox();
+        }
+
+        function setLightboxImage(index, e) {
+            if (e) e.stopPropagation();
+            lightboxCurrentIndex = index;
+            renderLightbox();
+        }
+
+        function renderLightbox() {
+            const mainImg = document.getElementById('lightbox-main-img');
+            const thumbsContainer = document.getElementById('lightbox-thumbnails');
+            
+            mainImg.src = baseUrl + lightboxImages[lightboxCurrentIndex];
+            
+            // Render thumbnails
+            thumbsContainer.innerHTML = lightboxImages.map((img, idx) => `
+                <img class="lightbox-thumb ${idx === lightboxCurrentIndex ? 'active' : ''}" 
+                     src="${baseUrl}${img}" 
+                     onclick="setLightboxImage(${idx}, event)">
+            `).join('');
+
+            // Hide nav buttons if only 1 image
+            const navButtons = document.querySelectorAll('.lightbox-nav');
+            navButtons.forEach(btn => btn.style.display = lightboxImages.length > 1 ? 'block' : 'none');
+        }
+
         function incrementCatalogQty(id, maxStock) {
             const input = document.getElementById('qty-input-' + id);
             let val = parseInt(input.value);
