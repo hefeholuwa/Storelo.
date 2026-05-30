@@ -7,26 +7,50 @@ function saveCart() {
     renderCart();
 }
 
-function addToCart(productId, name, price, image) {
-    // For thrift items, quantity is typically 1 — but we allow increment for general use
+function addToCart(productId, name, price, image, qtyToAdd = 1, maxStock = 1) {
     const existing = cart.find(item => item.id === productId);
+    
     if (existing) {
-        existing.quantity += 1;
+        let newQty = existing.quantity + qtyToAdd;
+        if (newQty > maxStock) {
+            alert(`Sorry, you cannot add more. Only ${maxStock} items available in stock.`);
+            existing.quantity = maxStock;
+        } else {
+            existing.quantity = newQty;
+        }
     } else {
+        if (qtyToAdd > maxStock) qtyToAdd = maxStock;
         cart.push({
             id: productId,
             name: name,
             price: parseFloat(price),
             image: image,
-            quantity: 1
+            quantity: qtyToAdd,
+            maxStock: maxStock
         });
     }
-    openCartDrawer();
+    
     saveCart();
+    openCartDrawer();
 }
 
 function removeFromCart(productId) {
     cart = cart.filter(item => item.id !== productId);
+    saveCart();
+}
+
+function changeQuantity(id, change) {
+    let item = cart.find(i => i.id === id);
+    if (!item) return;
+
+    item.quantity += change;
+    if (item.quantity > item.maxStock) {
+        alert(`Only ${item.maxStock} items available in stock.`);
+        item.quantity = item.maxStock;
+    }
+    if (item.quantity <= 0) {
+        cart = cart.filter(i => i.id !== id);
+    }
     saveCart();
 }
 
@@ -77,7 +101,14 @@ function renderCart() {
                     <img src="${item.image}" alt="${item.name}">
                     <div class="cart-item-info">
                         <h5>${item.name}</h5>
-                        <p>${currency}${item.price.toFixed(2)} × ${item.quantity}</p>
+                        <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
+                            <span style="font-weight:600; color:var(--accent);">${currency}${item.price.toFixed(2)}</span>
+                            <div class="qty-selector" style="display:flex; align-items:center; border:1px solid var(--border-subtle); border-radius:4px; overflow:hidden; background:var(--glass-bg);">
+                                <button type="button" onclick="changeQuantity(${item.id}, -1)" style="background:none; border:none; color:var(--text-color); padding:2px 6px; cursor:pointer;">-</button>
+                                <span style="font-size:0.85rem; width:20px; text-align:center;">${item.quantity}</span>
+                                <button type="button" onclick="changeQuantity(${item.id}, 1)" style="background:none; border:none; color:var(--text-color); padding:2px 6px; cursor:pointer;">+</button>
+                            </div>
+                        </div>
                     </div>
                     <button class="cart-item-remove" onclick="removeFromCart(${item.id})" title="Remove">&times;</button>
                 </div>

@@ -20,8 +20,8 @@ if (!$seller) {
 
 $currency = $seller['currency'] ?? '₦';
 
-// Fetch products (available and sold — hidden are excluded)
-$stmt = $db->prepare("SELECT * FROM products WHERE seller_id = ? AND status != 'hidden' ORDER BY FIELD(status, 'available', 'sold'), id DESC");
+// Fetch products (active)
+$stmt = $db->prepare("SELECT * FROM products WHERE seller_id = ? AND status = 'active' ORDER BY id DESC");
 $stmt->execute([$seller['id']]);
 $products = $stmt->fetchAll();
 
@@ -87,8 +87,8 @@ $categories = array_unique(array_filter(array_column($products, 'category')));
                     <div class="glass-card product-card" data-category="<?= e($p['category'] ?? '') ?>">
                         <img class="product-image" src="<?= BASE_URL ?>/<?= $p['image_path'] ?>" alt="<?= e($p['name']) ?>">
 
-                        <?php if ($p['status'] === 'sold'): ?>
-                            <div class="sold-overlay"><span>SOLD</span></div>
+                        <?php if ($p['stock'] <= 0): ?>
+                            <div class="sold-overlay"><span>SOLD OUT</span></div>
                         <?php endif; ?>
 
                         <div class="product-name"><?= e($p['name']) ?></div>
@@ -99,12 +99,23 @@ $categories = array_unique(array_filter(array_column($products, 'category')));
                             <p style="color:var(--text-secondary); font-size:0.85rem; margin:6px 0; max-height:40px; overflow:hidden;"><?= e($p['description']) ?></p>
                         <?php endif; ?>
 
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px;">
-                            <span class="product-price"><?= $currency ?><?= number_format($p['price'], 2) ?></span>
-                            <?php if ($p['status'] === 'available'): ?>
-                                <button onclick="addToCart(<?= $p['id'] ?>, '<?= addslashes(e($p['name'])) ?>', <?= $p['price'] ?>, '<?= BASE_URL ?>/<?= $p['image_path'] ?>')" class="btn-primary btn-sm">Add</button>
+                        <div style="display:flex; flex-direction:column; gap:10px; margin-top:12px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <span class="product-price"><?= $currency ?><?= number_format($p['price'], 2) ?></span>
+                                <span style="font-size:0.8rem; color:var(--text-muted);">Stock: <?= $p['stock'] ?></span>
+                            </div>
+                            
+                            <?php if ($p['stock'] > 0): ?>
+                                <div style="display:flex; gap:8px; align-items:center;">
+                                    <div class="qty-selector" style="display:flex; align-items:center; border:1px solid var(--border-subtle); border-radius:4px; overflow:hidden;">
+                                        <button type="button" onclick="decrementCatalogQty(<?= $p['id'] ?>)" style="background:none; border:none; color:var(--text-color); padding:4px 8px; cursor:pointer;">-</button>
+                                        <input type="text" id="qty-input-<?= $p['id'] ?>" value="1" readonly style="width:30px; text-align:center; background:none; border:none; color:var(--text-color); font-size:0.9rem;">
+                                        <button type="button" onclick="incrementCatalogQty(<?= $p['id'] ?>, <?= $p['stock'] ?>)" style="background:none; border:none; color:var(--text-color); padding:4px 8px; cursor:pointer;">+</button>
+                                    </div>
+                                    <button onclick="addCatalogToCart(<?= $p['id'] ?>, '<?= addslashes(e($p['name'])) ?>', <?= $p['price'] ?>, '<?= BASE_URL ?>/<?= $p['image_path'] ?>', <?= $p['stock'] ?>)" class="btn-primary btn-sm" style="flex:1;">Add to Cart</button>
+                                </div>
                             <?php else: ?>
-                                <span class="badge badge-danger">Sold</span>
+                                <button class="btn-secondary btn-sm" disabled style="width:100%; cursor:not-allowed;">SOLD OUT</button>
                             <?php endif; ?>
                         </div>
                     </div>
@@ -166,6 +177,22 @@ $categories = array_unique(array_filter(array_column($products, 'category')));
     </footer>
 
     <script>
+        function incrementCatalogQty(id, maxStock) {
+            const input = document.getElementById('qty-input-' + id);
+            let val = parseInt(input.value);
+            if (val < maxStock) input.value = val + 1;
+        }
+        function decrementCatalogQty(id) {
+            const input = document.getElementById('qty-input-' + id);
+            let val = parseInt(input.value);
+            if (val > 1) input.value = val - 1;
+        }
+        function addCatalogToCart(id, name, price, img, maxStock) {
+            const qty = parseInt(document.getElementById('qty-input-' + id).value);
+            addToCart(id, name, price, img, qty, maxStock);
+            document.getElementById('qty-input-' + id).value = 1; // reset selector
+        }
+
         // Category filtering
         function filterCategory(category, btn) {
             const cards = document.querySelectorAll('.product-card');
