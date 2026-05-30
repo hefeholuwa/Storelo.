@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS products (
     category VARCHAR(50),
     price DECIMAL(10, 2) NOT NULL,
     image_path VARCHAR(255) NOT NULL,
-    status ENUM('available', 'sold', 'hidden') DEFAULT 'available',
+    stock INT UNSIGNED DEFAULT 1,
+    status ENUM('active', 'hidden') DEFAULT 'active',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (seller_id) REFERENCES sellers(id) ON DELETE CASCADE
 );
