@@ -12,11 +12,11 @@ $stmt = $db->prepare("SELECT COUNT(*) as cnt FROM products WHERE seller_id = ?")
 $stmt->execute([$seller_id]);
 $total_products = $stmt->fetch()['cnt'];
 
-$stmt = $db->prepare("SELECT COUNT(*) as cnt FROM products WHERE seller_id = ? AND status = 'available'");
+$stmt = $db->prepare("SELECT COUNT(*) as cnt FROM products WHERE seller_id = ? AND status = 'active' AND stock > 0");
 $stmt->execute([$seller_id]);
 $active_products = $stmt->fetch()['cnt'];
 
-$stmt = $db->prepare("SELECT COUNT(*) as cnt FROM products WHERE seller_id = ? AND status = 'sold'");
+$stmt = $db->prepare("SELECT COUNT(*) as cnt FROM products WHERE seller_id = ? AND status = 'active' AND stock <= 0");
 $stmt->execute([$seller_id]);
 $sold_products = $stmt->fetch()['cnt'];
 
@@ -73,7 +73,7 @@ $currency = $seller['currency'] ?? '₦';
                 </div>
                 <div class="stat-card">
                     <div class="stat-icon">🏷️</div>
-                    <div class="stat-label">Sold</div>
+                    <div class="stat-label">Out of Stock</div>
                     <div class="stat-value" style="color:var(--danger);"><?= $sold_products ?></div>
                 </div>
                 <div class="stat-card">
