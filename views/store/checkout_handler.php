@@ -35,18 +35,23 @@ try {
 
     // Validate all products are still available
     foreach ($cart_items as $item) {
-        $stmt = $db->prepare("SELECT price, status FROM products WHERE id = ? AND seller_id = ?");
+        $stmt = $db->prepare("SELECT price, status, stock FROM products WHERE id = ? AND seller_id = ?");
         $stmt->execute([$item['id'], $seller['id']]);
         $product = $stmt->fetch();
 
         if (!$product) {
             throw new Exception("Product not found: " . ($item['name'] ?? 'Unknown'));
         }
-        if ($product['status'] !== 'available') {
-            throw new Exception("Sorry, '" . ($item['name'] ?? 'an item') . "' has already been sold.");
+        if ($product['status'] !== 'active') {
+            throw new Exception("Sorry, '" . ($item['name'] ?? 'an item') . "' is currently unavailable.");
+        }
+        
+        $requested_qty = intval($item['quantity'] ?? 1);
+        if ($product['stock'] < $requested_qty) {
+            throw new Exception("Sorry, only " . $product['stock'] . " units of '" . ($item['name'] ?? 'item') . "' are available.");
         }
 
-        $total_price += floatval($product['price']) * intval($item['quantity'] ?? 1);
+        $total_price += floatval($product['price']) * $requested_qty;
     }
 
     // Insert order
@@ -62,9 +67,9 @@ try {
         $stmt = $db->prepare("INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)");
         $stmt->execute([$order_id, $item['id'], $qty, $price]);
 
-        // Mark thrift item as sold
-        $stmt = $db->prepare("UPDATE products SET status = 'sold' WHERE id = ?");
-        $stmt->execute([$item['id']]);
+        // Decrement stock quantity
+        $stmt = $db->prepare("UPDATE products SET stock = stock - ? WHERE id = ?");
+        $stmt->execute([$qty, $item['id']]);
     }
 
     $db->commit();
