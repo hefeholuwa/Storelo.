@@ -1,0 +1,24 @@
+# Storelo
+
+# Exclude sensitive config
+config.php
+
+# Uploads (user-generated content)
+uploads/logos/*
+uploads/products/*
+!uploads/logos/.gitkeep
+!uploads/products/.gitkeep
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
