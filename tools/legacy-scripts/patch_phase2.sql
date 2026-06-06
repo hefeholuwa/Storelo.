@@ -1,0 +1,13 @@
+ALTER TABLE sellers ADD COLUMN theme_color VARCHAR(10) DEFAULT '#F68B1E';
+ALTER TABLE sellers ADD COLUMN banner_path VARCHAR(255) DEFAULT NULL;
+ALTER TABLE sellers ADD COLUMN payment_instructions TEXT DEFAULT NULL;
+
+ALTER TABLE orders ADD COLUMN shipping_fee DECIMAL(10, 2) DEFAULT 0 AFTER discount_amount;
+
+CREATE TABLE IF NOT EXISTS shipping_zones (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    seller_id INT NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    fee DECIMAL(10, 2) NOT NULL,
+    FOREIGN KEY (seller_id) REFERENCES sellers(id) ON DELETE CASCADE
+);

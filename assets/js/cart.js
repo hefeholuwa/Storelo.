@@ -1,9 +1,11 @@
 // assets/js/cart.js — Client-side shopping cart using localStorage
 
-let cart = JSON.parse(localStorage.getItem('storelo_cart')) || [];
+const storeUsername = window.location.pathname.split('/')[2];
+const cartKey = 'storelo_cart_' + storeUsername;
+let cart = JSON.parse(localStorage.getItem(cartKey)) || [];
 
 function saveCart() {
-    localStorage.setItem('storelo_cart', JSON.stringify(cart));
+    localStorage.setItem(cartKey, JSON.stringify(cart));
     renderCart();
 }
 
@@ -31,16 +33,19 @@ function addToCart(productId, name, price, image, qtyToAdd = 1, maxStock = 1) {
     }
     
     saveCart();
-    openCartDrawer();
+    
+    // Instead of opening drawer, maybe show a quick alert or toast
+    // For Jumia feel, we just update the cart badge and maybe redirect to cart page
+    // alert("Item added to cart!");
 }
 
 function removeFromCart(productId) {
-    cart = cart.filter(item => item.id !== productId);
+    cart = cart.filter(item => item.id != productId);
     saveCart();
 }
 
 function changeQuantity(id, change) {
-    let item = cart.find(i => i.id === id);
+    let item = cart.find(i => i.id == id);
     if (!item) return;
 
     item.quantity += change;
@@ -49,7 +54,7 @@ function changeQuantity(id, change) {
         item.quantity = item.maxStock;
     }
     if (item.quantity <= 0) {
-        cart = cart.filter(i => i.id !== id);
+        cart = cart.filter(i => i.id != id);
     }
     saveCart();
 }
@@ -67,72 +72,66 @@ function getCartCount() {
     return cart.reduce((acc, item) => acc + item.quantity, 0);
 }
 
-// ── Drawer open/close ───────────────────────────────────────
-
-function openCartDrawer() {
-    document.getElementById('cart-drawer').classList.add('open');
-    document.getElementById('cart-overlay').classList.add('open');
-    document.body.style.overflow = 'hidden';
-}
-
-function closeCartDrawer() {
-    document.getElementById('cart-drawer').classList.remove('open');
-    document.getElementById('cart-overlay').classList.remove('open');
-    document.body.style.overflow = '';
-}
-
 // ── Render ───────────────────────────────────────────────────
 
 function renderCart() {
-    const countEl = document.getElementById('cart-count');
-    const itemsEl = document.getElementById('cart-items');
-    const totalEl = document.getElementById('cart-total');
+    const countBadge = document.getElementById('cart-count-badge');
+    const pageItemsEl = document.getElementById('cart-page-items');
+    const pageSummaryEl = document.getElementById('cart-page-summary');
     const currencyEl = document.getElementById('cart-currency');
     const currency = currencyEl ? currencyEl.value : '';
 
-    if (countEl) countEl.textContent = getCartCount();
+    if (countBadge) countBadge.textContent = getCartCount();
 
-    if (itemsEl) {
+    const headerBadge = document.getElementById('header-cart-badge');
+    if (headerBadge) {
+        headerBadge.innerText = getCartCount();
+        headerBadge.style.display = getCartCount() > 0 ? 'flex' : 'none';
+    }
+
+    if (pageItemsEl) {
         if (cart.length === 0) {
-            itemsEl.innerHTML = '<p style="text-align:center; color:var(--text-muted); padding:40px 0;">Your cart is empty.</p>';
+            pageItemsEl.innerHTML = `
+                <div class="empty-cart-view">
+                    <div class="empty-cart-icon">🛒</div>
+                    <h3 style="font-size: 1.25rem; color: #111827; margin-bottom: 8px;">Your cart is empty!</h3>
+                    <p style="color: #6b7280; margin-bottom: 24px;">Browse our categories and discover our best deals!</p>
+                    <a href="/shop/${storeUsername}" class="btn-primary" style="padding: 12px 32px; font-weight: 600; text-transform: uppercase; border-radius: 4px; box-shadow: 0 4px 12px rgba(246, 139, 30, 0.3);">Start Shopping</a>
+                </div>
+            `;
+            if (pageSummaryEl) pageSummaryEl.style.display = 'none';
         } else {
-            itemsEl.innerHTML = cart.map(item => `
-                <div class="cart-item">
-                    <img src="${item.image}" alt="${item.name}">
-                    <div class="cart-item-info">
-                        <h5>${item.name}</h5>
-                        <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
-                            <span style="font-weight:600; color:var(--accent);">${currency}${item.price.toFixed(2)}</span>
-                            <div class="qty-selector" style="display:flex; align-items:center; border:1px solid var(--border-subtle); border-radius:4px; overflow:hidden; background:var(--glass-bg);">
-                                <button type="button" onclick="changeQuantity(${item.id}, -1)" style="background:none; border:none; color:var(--text-color); padding:2px 6px; cursor:pointer;">-</button>
-                                <span style="font-size:0.85rem; width:20px; text-align:center;">${item.quantity}</span>
-                                <button type="button" onclick="changeQuantity(${item.id}, 1)" style="background:none; border:none; color:var(--text-color); padding:2px 6px; cursor:pointer;">+</button>
+            pageItemsEl.innerHTML = cart.map(item => `
+                <div style="display: flex; gap: 16px; padding-bottom: 24px; border-bottom: 1px solid var(--border-subtle); margin-bottom: 24px;">
+                    <img src="${item.image}" alt="${item.name}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 4px; flex-shrink: 0;">
+                    <div style="flex: 1;">
+                        <h4 style="font-size: 1rem; color: #111827; margin-bottom: 4px;">${item.name}</h4>
+                        ${item.variant ? `<p style="font-size: 0.8rem; color: #6b7280; margin: 0 0 8px 0; font-style: italic;">${item.variant}</p>` : ''}
+                        <div style="font-size: 1.1rem; font-weight: 800; color: #111827; margin-bottom: 16px;">${currency}${item.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                        
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <button onclick="removeFromCart(${typeof item.id === 'string' ? `'${item.id}'` : item.id})" style="background: none; border: none; color: #F68B1E; font-weight: 600; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                                <span style="font-size: 1.1rem;">🗑</span> Remove
+                            </button>
+                            
+                            <div style="display: flex; align-items: center; border: 1px solid var(--border-subtle); border-radius: 4px; overflow: hidden;">
+                                <button type="button" onclick="changeQuantity(${typeof item.id === 'string' ? `'${item.id}'` : item.id}, -1)" style="background: #F68B1E; border: none; color: white; padding: 4px 12px; font-weight: bold; cursor: pointer;">-</button>
+                                <span style="width: 32px; text-align: center; font-size: 0.95rem; font-weight: 600;">${item.quantity}</span>
+                                <button type="button" onclick="changeQuantity(${typeof item.id === 'string' ? `'${item.id}'` : item.id}, 1)" style="background: #F68B1E; border: none; color: white; padding: 4px 12px; font-weight: bold; cursor: pointer;">+</button>
                             </div>
                         </div>
                     </div>
-                    <button class="cart-item-remove" onclick="removeFromCart(${item.id})" title="Remove">&times;</button>
                 </div>
             `).join('');
+            
+            if (pageSummaryEl) pageSummaryEl.style.display = 'block';
+            
+            const totalEl = document.getElementById('cart-page-total');
+            const btnTotalEl = document.getElementById('cart-page-btn-total');
+            if (totalEl) totalEl.textContent = getCartTotal().toFixed(2);
+            if (btnTotalEl) btnTotalEl.textContent = getCartTotal().toFixed(2);
         }
     }
-
-    if (totalEl) totalEl.textContent = getCartTotal().toFixed(2);
-}
-
-// ── Checkout Modal ──────────────────────────────────────────
-
-function openCheckoutModal() {
-    if (cart.length === 0) {
-        alert('Your cart is empty. Add some items first.');
-        return;
-    }
-    document.getElementById('cart-data-input').value = JSON.stringify(cart);
-    document.getElementById('checkout-modal').classList.add('active');
-    closeCartDrawer();
-}
-
-function closeCheckoutModal() {
-    document.getElementById('checkout-modal').classList.remove('active');
 }
 
 // ── Init ─────────────────────────────────────────────────────
